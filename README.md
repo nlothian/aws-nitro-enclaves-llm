@@ -93,7 +93,7 @@ AWS Nitro Enclaves use a local socket connection called vsock to create a secure
 #Nitro Enclave Allocator Service
 AWS Nitro Enclaves are an isolated environment that designates a portion of the instance CPU and memory to run the enclave. Using the Nitro Enclave allocator service, users can indicate how many CPUs and how much memory will be taken from the parent instance to run the enclave.
 1.	Modify the enclaves reserved resources using any text editor (for our solution we allocate 8 CPU and 70000 MiB memory to ensure enough resources):
-` vi /etc/nitro_enclaves/allocatory.yaml `
+` vi /etc/nitro_enclaves/allocator.yaml `
 
 
 # Clone the Project
