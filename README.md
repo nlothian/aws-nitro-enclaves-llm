@@ -117,7 +117,7 @@ cd ~/ && git clone https://<THE_REPO.git>
 ```
 2.	Navigate to the project folder to build the “enclave_base” docker image that contains the Nitro Enclaves Software Development Kit (SDK) for cryptographic attestation documents from the Nitro Hypervisor (this step can take upwards to 15 minutes):
 ```
-cd /aws-nitro-enclaves-llm/src/enclave_base
+cd ~/aws-nitro-enclaves-llm/src/enclave_base
 docker build ./ -t "enclave_base"
 ```
 
@@ -129,11 +129,20 @@ cd ~/aws-nitro-enclaves-llm/src
 ```
 2.	Install the necessary requirements to save the model locally:
 ```
-pip3 install requirements.txt
+sudo dnf install python3-pip
+pip3 install -r requirements.txt
 ```
 3.	Run the save_model.py app to save the model within the `/src/enclave/bloom` directory:
 ```
 python3 save_model.py
+```
+
+# Build the Docker image including the LLM 
+
+1. Navigate to the correct directory and build the image
+```
+cd ~/aws-nitro-enclaves-llm/src/enclave
+docker build ./ -t "enclave"
 ```
 
 # Build and Run the Nitro Enclave Image
