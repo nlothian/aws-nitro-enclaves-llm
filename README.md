@@ -62,7 +62,7 @@ User data, including PII, PHI, and questions, remains encrypted throughout the r
 1.	Navigate to the Amazon EC2 by searching for “EC2” in the AWS Management Console search bar.
 2.	Select “Launch instance”.
 3.	Provide an appropriate EC2 instance name and select a QuickStart Amazon Machine Image (AMI) or create your own but ensure that selected AMI’s kernel driver is compatible with Nitro Enclaves distro kernels.
-a.	For this demo, we are using the amzn2-ami-kernel-5.10-hvm-2.0.20230628.0-x86_64-gp2 AMI
+a.	For this demo, we are using the `amzn2-ami-kernel-5.10-hvm-2.0.20230628.0-x86_64-gp2` AMI
 4.	Select instance type.
 a.	LLMs are very CPU- and memory-intensive. For this demo, we are using an r5.8xlarge instance.
 5.	Configure key pair and network settings appropriately.
@@ -74,63 +74,93 @@ a.	LLMs are very large, so ensure that there is plenty of storage so you can loa
 # EC2 Instance Configuration
 Now that the EC2 instance is running and you have connected to your instance, use the following steps to configure the necessary Nitro Enclave tools:
 1.	Install the Nitro Enclaves CLI to build and run Nitro Enclave applications:
-` sudo amazon-linux-extras install aws-nitro-enclaves-cli -y `
-` sudo yum install aws-nitro-enclaves-cli-devel -y `
+```
+sudo amazon-linux-extras install aws-nitro-enclaves-cli -y
+sudo yum install aws-nitro-enclaves-cli-devel -y
+```
 2.	Verify installation of the Nitro Enclaves CLI:
-` nitro-cli --version `
+```
+nitro-cli --version
+```
 3.	Install Git and Docker to build docker images and download the application from GitHub. Add your instance user to the docker group (<USER> is your IAM instance user):
-` sudo yum install git -y `
-` sudo usermod -aG ne <USER> `
-` sudo usermod -aG docker <USER> `
-` sudo systemctl start docker && sudo systemctl enable docker `
+```
+sudo yum install git -y
+sudo usermod -aG ne <USER>
+sudo usermod -aG docker <USER>
+sudo systemctl start docker && sudo systemctl enable docker
+```
 4.	Start and enable the AWS Nitro Enclave allocator and vsock proxy services:
-` sudo systemctl start nitro-enclaves-allocator.service && sudo systemctl enable nitro-enclaves-allocator.service `
-` Sudo systemctl start nitro-enclaves-vsock-proxy.service && sudo systemctl enable nitro-enclaves-vsock-proxy.service `
+```
+sudo systemctl start nitro-enclaves-allocator.service && sudo systemctl enable nitro-enclaves-allocator.service
+sudo systemctl start nitro-enclaves-vsock-proxy.service && sudo systemctl enable nitro-enclaves-vsock-proxy.service 
+```
 AWS Nitro Enclaves use a local socket connection called vsock to create a secure channel between the parent instance and the enclave.
 5.	Once all the services are started and enabled, restart the instance to ensure all user groups and services are running correctly.
-` sudo shutdown -r now `
+```
+sudo shutdown -r now
+```
 
-#Nitro Enclave Allocator Service
+# Nitro Enclave Allocator Service
 AWS Nitro Enclaves are an isolated environment that designates a portion of the instance CPU and memory to run the enclave. Using the Nitro Enclave allocator service, users can indicate how many CPUs and how much memory will be taken from the parent instance to run the enclave.
 1.	Modify the enclaves reserved resources using any text editor (for our solution we allocate 8 CPU and 70000 MiB memory to ensure enough resources):
-` vi /etc/nitro_enclaves/allocator.yaml `
+```
+vi /etc/nitro_enclaves/allocator.yaml
+```
 
 
 # Clone the Project
 Once the EC2 instance is configured, you can download the code that will be used to run the sensitive chatbot with an LLM inside of a Nitro Enclave:
 Note: You need to update the server.py file with the appropriate KMS key id that was created in the beginning to encrypt the LLM response.
 1.	Clone the GitHub project:
+```
 cd ~/ && git clone https://<THE_REPO.git>
+```
 2.	Navigate to the project folder to build the “enclave_base” docker image that contains the Nitro Enclaves Software Development Kit (SDK) for cryptographic attestation documents from the Nitro Hypervisor (this step can take upwards to 15 minutes):
-` cd /nitro_llm/enclave_base `
-` docker build ./ -t “enclave_base” `
+```
+cd /aws-nitro-enclaves-llm/src/enclave_base
+docker build ./ -t "enclave_base"
+```
 
 # Save the LLM in the EC2 Instance
 We are using the open-source Bloom 560m large language model (LLM) for natural language processing to generate responses. This model is not fine-tuned to PII/PHI but demonstrates how a LLM can live inside of a Nitro Enclave. The model also needs to be saved on the parent instance so that it can be copied into the enclave via the Dockerfile.
 1.	Navigate to the project:
-` cd /nitro_llm `
+```
+cd ~/aws-nitro-enclaves-llm/src
+```
 2.	Install the necessary requirements to save the model locally:
-` pip3 install requirements.txt `
-3.	Run the save_model.py app to save the model within the /nitro_llm/enclave/bloom directory:
-` python3 save_model.py `
+```
+pip3 install requirements.txt
+```
+3.	Run the save_model.py app to save the model within the `/src/enclave/bloom` directory:
+```
+python3 save_model.py
+```
 
 # Build and Run the Nitro Enclave Image
 To run Nitro Enclaves, an enclave image file (EIF) needs to be created from a docker image of your application. The Dockerfile located in the enclave directory contains the files, code, and LLM that will run inside of the enclave.
 Note: Building and running the enclave will take multiple minutes to complete.
-1.	Navigate to the root of the project:
-` cd /nitro_llm `
+1.	Navigate to the root directory of the project:
+```
+cd ~/aws-nitro-enclaves-llm/
+```
 
 2.	Build the enclave image file as enclave.eif
-` nitro-cli build-enclave --docker-uri enclave:latest --output-file enclave.eif `
+```
+nitro-cli build-enclave --docker-uri enclave:latest --output-file enclave.eif 
+```
 
 When the enclave is built, a series of unique hashes and platform configuration registers (PCRs) will be created. The PCRs are a contiguous measurement to prove the identity of the hardware and application. These PCRs will be required for cryptographic attestation and used during the KMS key policy update section below.
 
 3.	Run the enclave with the resources from the allocator.service (adding the --attach-console argument at the end will run the enclave in debug mode):
-` nitro-cli run-enclave --cpu-count 8 --memory 70000 --enclave-cid 16 --eif-path enclave.eif `
+```
+nitro-cli run-enclave --cpu-count 8 --memory 70000 --enclave-cid 16 --eif-path enclave.eif
+```
 Note: You need to allocate at least 4 times the EIF file size. This can be modified in the allocator.service from pervious steps.
 
 4.	You can verify the enclave is running with the command below:
-` nitro-cli describe-enclaves `
+```
+nitro-cli describe-enclaves
+```
 
 
 # Update the KMS Key Policy
@@ -145,8 +175,7 @@ Note: You need to allocate at least 4 times the EIF file size. This can be modif
 •	Actions kms:Encrypt and kms:Decrypt
 •	Add enclave PCRs (e.g. “PCR0, PCR1, PCR2”) to your key policy with a condition statement
 
-~~~~
-{
+```{
     "Version": "2012-10-17",
     "Id": "key-default-1",
     "Statement": [
@@ -192,7 +221,7 @@ Note: You need to allocate at least 4 times the EIF file size. This can be modif
         }
     ]
 }
-~~~~
+```
 
 # Save the Chatbot App
 To mimic a sensitive query chatbot application that lives outside of the AWS account, the chatbot.py app needs to be saved and run inside of the Cloud9 environment. Your Cloud9 environment will use its instance role for temporary credentials to disassociate permissions from the EC2 running the enclave.
